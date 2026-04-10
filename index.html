@@ -724,8 +724,8 @@ async function loadMaterials() {
       const name = row[col.name].trim();
       if (!includedFamilies.includes(name)) continue;
 
-      const sheetLength = parseFloat(row[col.length]);
-      const sheetWidth = parseFloat(row[col.width]);
+      const sheetLength = parseFloat(row[col.length].replace(/,/g, ''));
+      const sheetWidth = parseFloat(row[col.width].replace(/,/g, ''));
       if (isNaN(sheetLength) || isNaN(sheetWidth)) continue;
 
       materials.push({
