@@ -1014,7 +1014,7 @@ btnSubmit.addEventListener('click', async () => {
   showStatus('loading', 'Sending order to system…');
 
   try {
-    const response = await fetch(CONFIG.WEBHOOK_URL, {
+    const response = await fetch(https://plastifab.app.n8n.cloud/webhook/material-order, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
