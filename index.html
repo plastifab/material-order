@@ -264,12 +264,27 @@ function resetSelect(sel, placeholder) { sel.innerHTML = `<option value="">${pla
 
 function populateMaterials() {
   const names = uniquePreserveOrder(materials.map(m => m.name));
+  names.push('Other');
   populateSelect(selMaterial, names, 'Select material…');
 }
 
 selMaterial.addEventListener('change', () => {
   const name = selMaterial.value;
   resetSelect(selColour, 'Select colour…'); resetSelect(selThickness, 'Select thickness…'); resetSelect(selSize, 'Select size…');
+
+  if (name === 'Other') {
+    // Disable cascade fields and qty for Other
+    selColour.disabled = true; selThickness.disabled = true; selSize.disabled = true;
+    inpQty.disabled = true; inpQty.value = '';
+    inpNotes.placeholder = 'Describe what you need (e.g. material, link, specs)';
+    updateAddButton();
+    return;
+  }
+
+  // Re-enable qty if coming back from Other
+  inpQty.disabled = false;
+  inpNotes.placeholder = 'e.g. Half sheets required';
+
   updateAddButton();
   if (!name) return;
   const colours = uniquePreserveOrder(materials.filter(m => m.name === name).map(m => m.colour));
@@ -300,9 +315,40 @@ selThickness.addEventListener('change', () => {
 selSize.addEventListener('change', () => { updateAddButton(); });
 
 // ── ADD TO ORDER ──
-function updateAddButton() { btnAdd.disabled = !(selMaterial.value && selColour.value && selThickness.value && selSize.value); }
+function isOtherSelected() { return selMaterial.value === 'Other'; }
+
+function updateAddButton() {
+  if (isOtherSelected()) {
+    // Other only requires notes
+    btnAdd.disabled = !inpNotes.value.trim();
+    return;
+  }
+  btnAdd.disabled = !(selMaterial.value && selColour.value && selThickness.value && selSize.value);
+}
+
+// Listen for notes changes too (needed for Other validation)
+inpNotes.addEventListener('input', () => { if (isOtherSelected()) updateAddButton(); });
 
 btnAdd.addEventListener('click', () => {
+  if (isOtherSelected()) {
+    // Other item — only notes required, job ID optional
+    const notes = inpNotes.value.trim();
+    if (!notes) { showStatus('error', 'Describe what you need in the Notes field.'); return; }
+    const jobId = inpJobId.value.trim();
+
+    orderItems.push({
+      material: 'Other', colour: '', gauge: '', size: '', length: 0, width: 0,
+      qty: 0, jobId: jobId || '', notes: notes, supplier: 'Other', type: 'Other',
+    });
+
+    renderOrderList(); clearStatus();
+    selMaterial.value = ''; inpNotes.value = ''; inpNotes.placeholder = 'e.g. Half sheets required';
+    inpQty.disabled = false;
+    updateAddButton(); selMaterial.focus();
+    return;
+  }
+
+  // Standard item
   const qty = parseInt(inpQty.value, 10), jobId = inpJobId.value.trim();
   if (!qty || qty < 1) { showStatus('error', 'Enter a quantity.'); return; }
   if (!jobId) { showStatus('error', 'Enter a Job ID.'); return; }
@@ -325,9 +371,16 @@ function renderOrderList() {
     const li = document.createElement('li'); li.className = 'order-item';
     const numSpan = document.createElement('span'); numSpan.className = 'order-item-num'; numSpan.textContent = `${idx+1}.`;
     const detail = document.createElement('div'); detail.className = 'order-item-detail';
-    let html = `<strong>${item.qty} × ${item.material} ${item.colour} ${item.gauge}mm</strong> (${item.size})`;
-    html += `<br><span class="item-meta">Job ${item.jobId} · ${item.supplier}</span>`;
-    if (item.notes) { html += `<div class="item-notes">${item.notes}</div>`; }
+    let html;
+    if (item.material === 'Other') {
+      html = `<strong>Other Request</strong>`;
+      if (item.jobId) html += `<br><span class="item-meta">Job ${item.jobId}</span>`;
+      html += `<div class="item-notes">${item.notes}</div>`;
+    } else {
+      html = `<strong>${item.qty} × ${item.material} ${item.colour} ${item.gauge}mm</strong> (${item.size})`;
+      html += `<br><span class="item-meta">Job ${item.jobId} · ${item.supplier}</span>`;
+      if (item.notes) { html += `<div class="item-notes">${item.notes}</div>`; }
+    }
     detail.innerHTML = html;
     const removeBtn = document.createElement('button'); removeBtn.className = 'btn btn-small'; removeBtn.textContent = 'Remove';
     removeBtn.addEventListener('click', () => { orderItems.splice(idx, 1); renderOrderList(); });
