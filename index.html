@@ -138,6 +138,7 @@ const CONFIG = {
 
 let materials = [];
 let orderItems = [];
+let recentOrdersCache = []; // local cache of recent orders for instant display after submit
 
 const $ = (id) => document.getElementById(id);
 const selMaterial = $('sel-material'), selColour = $('sel-colour'), selThickness = $('sel-thickness'), selSize = $('sel-size');
@@ -351,10 +352,23 @@ btnSubmit.addEventListener('click', async () => {
   try {
     const response = await fetch(CONFIG.WEBHOOK_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     if (!response.ok) throw new Error(`Server returned ${response.status}`);
+
+    // Inject the just-submitted order into the local cache immediately
+    // (the Google Sheets published CSV cache may take minutes to update)
+    recentOrdersCache.unshift({
+      timestamp: payload.timestamp,
+      location: payload.location,
+      items: payload.items,
+    });
+    // Keep only the last N
+    if (recentOrdersCache.length > CONFIG.RECENT_ORDERS_COUNT) {
+      recentOrdersCache = recentOrdersCache.slice(0, CONFIG.RECENT_ORDERS_COUNT);
+    }
+    renderRecentOrders(recentOrdersCache);
+
     orderItems = []; renderOrderList();
     showStatus('success', 'Order submitted. Drafts are being created for GM review.');
     btnSubmit.textContent = 'Submit Order';
-    loadRecentOrders();
   } catch (err) {
     showStatus('error', `Failed to submit order: ${err.message}. Try again or contact Mike.`);
     btnSubmit.disabled = false; btnSubmit.textContent = 'Submit Order'; console.error(err);
@@ -382,7 +396,8 @@ async function loadRecentOrders() {
       orders.push({ timestamp: ts, location: loc, items });
     }
     if (orders.length === 0) return;
-    renderRecentOrders(orders.slice(-CONFIG.RECENT_ORDERS_COUNT).reverse());
+    recentOrdersCache = orders.slice(-CONFIG.RECENT_ORDERS_COUNT).reverse();
+    renderRecentOrders(recentOrdersCache);
   } catch (err) { console.log('Could not load recent orders:', err.message); }
 }
 
